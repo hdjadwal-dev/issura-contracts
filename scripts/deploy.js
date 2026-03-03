@@ -89,7 +89,43 @@ async function main() {
   await issToken.grantPlatformRole(stoFactoryAddress);
   console.log(`  ✓ Granted PLATFORM_ROLE to STOFactory`);
 
-  // ── 5. Demo STO (local/testnet only) ──────────────────────────────────
+  // ── 5. IssuraTimelock ─────────────────────────────────────────────────
+  console.log("\n📦 [5/6] Deploying IssuraTimelock (48-hour delay)...");
+  const IssuraTimelock = await ethers.getContractFactory("IssuraTimelock");
+
+  // Proposers and executors: platform admin wallet (replace with multisig in mainnet)
+  const proposers = [adminAddress];
+  const executors = [adminAddress];
+
+  const timelock = await IssuraTimelock.deploy(proposers, executors, adminAddress);
+  await timelock.waitForDeployment();
+  const timelockAddress = await timelock.getAddress();
+  console.log(`  ✓ IssuraTimelock: ${timelockAddress}`);
+  console.log(`  ✓ Min delay: 48 hours`);
+
+  // ── Wire Timelock as admin of all contracts ────────────────────────────
+  console.log("\n🔐 Wiring timelock as DEFAULT_ADMIN_ROLE...");
+
+  const DEFAULT_ADMIN_ROLE = ethers.ZeroHash;
+
+  // IdentityRegistry — grant timelock admin, keep deployer as compliance
+  await identityRegistry.grantRole(DEFAULT_ADMIN_ROLE, timelockAddress);
+  console.log(`  ✓ IdentityRegistry: granted DEFAULT_ADMIN_ROLE to timelock`);
+
+  // STOFactory — grant timelock admin
+  await stoFactory.grantRole(DEFAULT_ADMIN_ROLE, timelockAddress);
+  console.log(`  ✓ STOFactory: granted DEFAULT_ADMIN_ROLE to timelock`);
+
+  // ISSToken — grant timelock admin
+  await issToken.grantRole(DEFAULT_ADMIN_ROLE, timelockAddress);
+  console.log(`  ✓ ISSToken: granted DEFAULT_ADMIN_ROLE to timelock`);
+
+  // NOTE: We intentionally keep deployer as DEFAULT_ADMIN_ROLE during testnet.
+  // On mainnet: revoke deployer's DEFAULT_ADMIN_ROLE from all contracts after
+  // confirming timelock is working correctly.
+  console.log(`  ⚠  Deployer retains DEFAULT_ADMIN_ROLE on testnet (revoke on mainnet)`);
+
+  // ── 6. Demo STO (local/testnet only) ──────────────────────────────────
   let stoId, stoTokenAddress;
   if (isLocal) {
     console.log("\n📦 [5/5] Creating demo STO (Marina Bay Tower III)...");
@@ -134,7 +170,7 @@ async function main() {
     console.log(`  ✓ STO ID:    ${stoId}`);
     console.log(`  ✓ Token:     ${stoTokenAddress}`);
   } else {
-    console.log("\n⏭  [5/5] Skipping demo STO on testnet (create via admin dashboard)");
+    console.log("\n⏭  [6/6] Skipping demo STO on testnet (create via admin dashboard)");
   }
 
   // ── Summary ────────────────────────────────────────────────────────────
@@ -148,6 +184,7 @@ async function main() {
       identityRegistry: identityRegistryAddress,
       stoFactory:       stoFactoryAddress,
       issToken:         issTokenAddress,
+      timelock:         timelockAddress,
       ...(stoTokenAddress && { demoSTOToken: stoTokenAddress }),
       ...(stoId && { demoSTOId: stoId }),
     }
@@ -165,6 +202,7 @@ async function main() {
   console.log(`  IdentityRegistry:  ${identityRegistryAddress}`);
   console.log(`  STOFactory:        ${stoFactoryAddress}`);
   console.log(`  ISSToken:          ${issTokenAddress}`);
+  console.log(`  Timelock (48hr):   ${timelockAddress}`);
   if (stoTokenAddress) console.log(`  Demo STO Token:    ${stoTokenAddress}`);
   console.log(`\n  📄 Saved to: deployments/${fileName}`);
 
@@ -172,7 +210,8 @@ async function main() {
     console.log("\n  🔍 Verify on Arbiscan:");
     console.log(`  npx hardhat verify --network arbitrumSepolia ${identityRegistryAddress} "${adminAddress}" "${complianceAddress}"`);
     console.log(`  npx hardhat verify --network arbitrumSepolia ${stoFactoryAddress} "${identityRegistryAddress}" "${usdcAddress}" "${treasuryAddress}" "${adminAddress}" "${deployer.address}"`);
-    console.log(`  npx hardhat verify --network arbitrumSepolia ${issTokenAddress} "${adminAddress}" "${deployer.address}" "${deployer.address}" "${deployer.address}" "${deployer.address}"`);
+    console.log(`  npx hardhat verify --network arbitrumSepolia ${timelockAddress} '["' + adminAddress + '"]' '["' + adminAddress + '"]' "${adminAddress}"`);
+  console.log(`  npx hardhat verify --network arbitrumSepolia ${issTokenAddress} "${adminAddress}" "${deployer.address}" "${deployer.address}" "${deployer.address}" "${deployer.address}"`);
   }
 }
 
