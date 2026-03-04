@@ -4,19 +4,18 @@ pragma solidity ^0.8.24;
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "../tokens/IssuraSecurityToken.sol";
-import "../interfaces/ISecurityToken.sol";
+import "../tokens/SURAToken.sol";
 
 /**
  * @title STOFactory
- * @notice Platform-level factory that deploys a new IssuraSecurityToken
+ * @notice Platform-level factory that deploys a new SURAToken
  *         for each approved STO. Acts as the single entry point for
  *         issuer onboarding and token lifecycle management.
  *
  *   Flow:
  *     1. Admin approves issuer application (off-chain KYC complete)
  *     2. Admin calls createSTO() with config approved in review
- *     3. New IssuraSecurityToken deployed and registered
+ *     3. New SURAToken (ERC-1400) deployed and registered
  *     4. Investors call invest() via the factory (AGENT_ROLE)
  *     5. Issuer calls processDistribution() directly on token contract
  *
@@ -97,7 +96,7 @@ contract STOFactory is AccessControl, ReentrancyGuard {
      * @return tokenAddress  Deployed token contract address
      */
     function createSTO(
-        ISecurityToken.STOConfig calldata config,
+        SURAToken.STOConfig calldata config,
         address complianceOfficer
     )
         external
@@ -121,7 +120,7 @@ contract STOFactory is AccessControl, ReentrancyGuard {
         ));
 
         // Deploy token contract
-        IssuraSecurityToken token = new IssuraSecurityToken(
+        SURAToken token = new SURAToken(
             config,
             identityRegistry,
             usdc,
@@ -170,7 +169,7 @@ contract STOFactory is AccessControl, ReentrancyGuard {
         require(rec.active, "Factory: STO not active");
         require(rec.tokenAddress != address(0), "Factory: STO not found");
 
-        IssuraSecurityToken token = IssuraSecurityToken(rec.tokenAddress);
+        SURAToken token = SURAToken(rec.tokenAddress);
 
         // Transfer USDC from investor to factory first
         IERC20 usdcToken = IERC20(usdc);
