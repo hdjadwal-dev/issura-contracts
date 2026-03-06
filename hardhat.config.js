@@ -11,33 +11,23 @@ module.exports = {
     },
   },
   networks: {
-    // Local node for development
     localhost: {
       url: "http://127.0.0.1:8545",
     },
-    // Arbitrum Sepolia testnet
     arbitrumSepolia: {
       url: process.env.ARBITRUM_SEPOLIA_RPC || "https://sepolia-rollup.arbitrum.io/rpc",
-      accounts: process.env.DEPLOYER_PRIVATE_KEY
-        ? [process.env.DEPLOYER_PRIVATE_KEY]
-        : [],
+      accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
       chainId: 421614,
       gasPrice: "auto",
     },
-    // Arbitrum One mainnet (when ready)
     arbitrumOne: {
       url: process.env.ARBITRUM_ONE_RPC || "https://arb1.arbitrum.io/rpc",
-      accounts: process.env.DEPLOYER_PRIVATE_KEY
-        ? [process.env.DEPLOYER_PRIVATE_KEY]
-        : [],
+      accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
       chainId: 42161,
     },
   },
   etherscan: {
-    apiKey: {
-      arbitrumSepolia: "STQNDBUZYI4CRY7ME2ZTZPJ1XXS5I73UET",
-      arbitrumOne: process.env.ARBISCAN_API_KEY || "",
-    },
+    apiKey: "STQNDBUZYI4CRY7ME2ZTZPJ1XXS5I73UET",
     customChains: [
       {
         network: "arbitrumSepolia",
@@ -48,6 +38,9 @@ module.exports = {
         },
       },
     ],
+  },
+  sourcify: {
+    enabled: false,
   },
   gasReporter: {
     enabled: process.env.REPORT_GAS === "true",
