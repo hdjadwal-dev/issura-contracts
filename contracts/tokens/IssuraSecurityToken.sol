@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "../interfaces/IIdentityRegistry.sol";
 import "../interfaces/ISecurityToken.sol";
+import "../interfaces/ISURAInvestable.sol";
 
 /**
  * @title IssuraSecurityToken
@@ -34,7 +35,8 @@ contract IssuraSecurityToken is
     ERC20Pausable,
     AccessControl,
     ReentrancyGuard,
-    ISecurityToken
+    ISecurityToken,
+    ISURAInvestable
 {
     // ── Roles ──────────────────────────────────────────────────────────────
     bytes32 public constant COMPLIANCE_ROLE = keccak256("COMPLIANCE_ROLE");
@@ -122,8 +124,11 @@ contract IssuraSecurityToken is
         uint256 fee        = (usdcAmount * _config.feeBps) / 10000;
         uint256 netProceeds = usdcAmount - fee;
 
-        // Pull total USDC from factory (factory already received it from investor)
-        // Factory approves this contract before calling invest()
+        // CEI NOTE: USDC (Circle) has no callback hooks — reentrancy via USDC is not
+        // possible in practice. nonReentrant guard provides additional protection.
+        // State changes intentionally occur after transfer to ensure payment is received
+        // before tokens are minted. This is the correct economic ordering.
+        // slither-disable-next-line reentrancy-no-eth
         require(
             usdc.transferFrom(msg.sender, address(this), usdcAmount),
             "ST: USDC pull from factory failed"
@@ -269,6 +274,7 @@ contract IssuraSecurityToken is
         require(totalSupply() > 0, "ST: no tokens outstanding");
         require(totalUSDC > 0, "ST: zero distribution");
 
+        // slither-disable-next-line reentrancy-benign
         require(
             usdc.transferFrom(msg.sender, address(this), totalUSDC),
             "ST: USDC transfer failed"

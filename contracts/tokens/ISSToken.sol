@@ -204,9 +204,10 @@ contract ISSToken is ERC20, AccessControl, ReentrancyGuard {
      */
     function hasPriorityAccess(address user) external view returns (bool) {
         Stake storage s = stakes[user];
+        // L-05 FIX: check lock DURATION (>= 6 months), not future timestamp
         return s.active &&
                s.amount >= TIER3_STAKE &&
-               s.lockUntil >= uint48(block.timestamp) + LOCK_6M;
+               (s.lockUntil - s.stakedAt) >= LOCK_6M;
     }
 
     // ── Platform fee burn (called by platform on fee settlement in ISS) ────
@@ -221,12 +222,14 @@ contract ISSToken is ERC20, AccessControl, ReentrancyGuard {
         external onlyRole(PLATFORM_ROLE)
     {
         require(balanceOf(from) >= amount, "ISS: insufficient balance for fee");
+        // H-03 FIX: require explicit approval — cannot force-pull without user consent
+        require(allowance(from, address(this)) >= amount, "ISS: insufficient allowance - user must approve first");
 
-        uint256 burnAmount = (amount * BURN_RATE_BPS) / 10000; // 20%
-        uint256 recycleAmount = amount - burnAmount;            // 80%
+        uint256 burnAmount    = (amount * BURN_RATE_BPS) / 10000; // 20%
+        // 80% recycled stays in contract (ecosystem pool)               // 80%
 
-        // Pull from user
-        _transfer(from, address(this), amount);
+        // Pull from user via approved transferFrom (respects allowance)
+        transferFrom(from, address(this), amount);
 
         // Burn 20%
         _burn(address(this), burnAmount);
@@ -279,3 +282,5 @@ contract ISSToken is ERC20, AccessControl, ReentrancyGuard {
         _grantRole(PLATFORM_ROLE, account);
     }
 }
+
+
