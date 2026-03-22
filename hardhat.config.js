@@ -6,7 +6,7 @@ module.exports = {
   solidity: {
     version: "0.8.24",
     settings: {
-      optimizer: { enabled: true, runs: 200 },
+      optimizer: { enabled: true, runs: 1 },
       viaIR: true,
     },
   },
@@ -29,6 +29,14 @@ module.exports = {
   etherscan: {
     apiKey: "STQNDBUZYI4CRY7ME2ZTZPJ1XXS5I73UET",
     customChains: [
+      {
+	network: "arbitrumOne",
+        chainId: 42161,
+        urls: {
+          apiURL: "https://api.arbiscan.io/api",
+          browserURL: "https://arbiscan.io",
+        },
+      },
       {
         network: "arbitrumSepolia",
         chainId: 421614,

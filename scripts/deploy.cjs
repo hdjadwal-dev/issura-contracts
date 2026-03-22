@@ -1,6 +1,6 @@
 // scripts/deploy.js
 // Deploys the full Issura contract suite to Arbitrum Sepolia (or local node)
-// Run: npx hardhat run scripts/deploy.js --network arbitrumSepolia
+// Run: npx hardhat run scripts/deploy.js --network ${network.name}
 
 const { ethers } = require("hardhat");
 const fs = require("fs");
@@ -8,8 +8,10 @@ const path = require("path");
 
 // ── Arbitrum Sepolia USDC address ──────────────────────────────────────────
 // For local testing we deploy a mock. On Arbitrum Sepolia use real address.
-const ARBITRUM_SEPOLIA_USDC = "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d";
-
+const USDC_ADDRESSES = {
+  421614: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d", // Arbitrum Sepolia
+  42161:  "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",  // Arbitrum One mainnet
+};
 async function main() {
   const [deployer] = await ethers.getSigners();
   const network = await ethers.provider.getNetwork();
@@ -27,7 +29,7 @@ async function main() {
   // ── Addresses ──────────────────────────────────────────────────────────
   const adminAddress      = process.env.PLATFORM_ADMIN      || deployer.address;
   const complianceAddress = process.env.COMPLIANCE_OFFICER  || deployer.address;
-  const treasuryAddress   = process.env.FEE_TREASURY        || deployer.address;
+  const treasuryAddress   = process.env.FEE_TREASURY        || "0x457793CD5c15E9e65Ba705CDDbb13Ed92389e39A";
 
   let usdcAddress;
 
@@ -44,7 +46,7 @@ async function main() {
     await mockUsdc.mint(deployer.address, ethers.parseUnits("1000000", 6));
     console.log(`  ✓ Minted 1,000,000 USDC to deployer`);
   } else {
-    usdcAddress = ARBITRUM_SEPOLIA_USDC;
+    usdcAddress = USDC_ADDRESSES[Number(network.chainId)] || USDC_ADDRESSES[421614];
     console.log(`📦 [1/5] Using real USDC: ${usdcAddress}`);
   }
 
@@ -170,9 +172,9 @@ async function main() {
 
   if (!isLocal) {
     console.log("\n  🔍 Verify on Arbiscan:");
-    console.log(`  npx hardhat verify --network arbitrumSepolia ${identityRegistryAddress} "${adminAddress}" "${complianceAddress}"`);
-    console.log(`  npx hardhat verify --network arbitrumSepolia ${stoFactoryAddress} "${identityRegistryAddress}" "${usdcAddress}" "${treasuryAddress}" "${adminAddress}" "${deployer.address}"`);
-    console.log(`  npx hardhat verify --network arbitrumSepolia ${issTokenAddress} "${adminAddress}" "${deployer.address}" "${deployer.address}" "${deployer.address}" "${deployer.address}"`);
+    console.log(`  npx hardhat verify --network ${network.name} ${identityRegistryAddress} "${adminAddress}" "${complianceAddress}"`);
+    console.log(`  npx hardhat verify --network ${network.name} ${stoFactoryAddress} "${identityRegistryAddress}" "${usdcAddress}" "${treasuryAddress}" "${adminAddress}" "${deployer.address}"`);
+    console.log(`  npx hardhat verify --network ${network.name} ${issTokenAddress} "${adminAddress}" "${deployer.address}" "${deployer.address}" "${deployer.address}" "${deployer.address}"`);
   }
 }
 
