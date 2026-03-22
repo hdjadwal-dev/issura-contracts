@@ -39,8 +39,8 @@
       ]
     },
     "C:\\Users\\X1 Carbon\\issura\\issura-contracts-git\\contracts\\tokens\\SURAToken.sol": {
-      "lastModificationDate": 1774138141882,
-      "contentHash": "6658878dcde01f9a897d6663760a2f34",
+      "lastModificationDate": 1774150547719,
+      "contentHash": "efbee901cb583f3ff772f2dc692c59f0",
       "sourceName": "contracts/tokens/SURAToken.sol",
       "solcConfig": {
         "version": "0.8.24",
@@ -546,8 +546,8 @@
       ]
     },
     "C:\\Users\\X1 Carbon\\issura\\issura-contracts-git\\contracts\\STOFactory.sol": {
-      "lastModificationDate": 1774138321030,
-      "contentHash": "02d1a681c6315afd142e8953576f36c4",
+      "lastModificationDate": 1774150608070,
+      "contentHash": "5b92a9e77d64d0562420ebf2b4195091",
       "sourceName": "contracts/STOFactory.sol",
       "solcConfig": {
         "version": "0.8.24",
@@ -588,8 +588,8 @@
       ]
     },
     "C:\\Users\\X1 Carbon\\issura\\issura-contracts-git\\contracts\\tokens\\IssuraSecurityToken.sol": {
-      "lastModificationDate": 1774138141872,
-      "contentHash": "7311d7096f117cfdeab8492ff40021d3",
+      "lastModificationDate": 1774150544411,
+      "contentHash": "4a42ca4a0dfb4d8f337dd26996946dcc",
       "sourceName": "contracts/tokens/IssuraSecurityToken.sol",
       "solcConfig": {
         "version": "0.8.24",
@@ -1020,8 +1020,8 @@
       ]
     },
     "C:\\Users\\X1 Carbon\\issura\\issura-contracts-git\\contracts\\tokens\\ISSToken.sol": {
-      "lastModificationDate": 1774138507150,
-      "contentHash": "c0f94df0a903870fc2bef8cac28fb2f0",
+      "lastModificationDate": 1774150845845,
+      "contentHash": "c49405b582b1a92514c4ee16c5eb7ea6",
       "sourceName": "contracts/tokens/ISSToken.sol",
       "solcConfig": {
         "version": "0.8.24",

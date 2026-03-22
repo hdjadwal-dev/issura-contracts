@@ -93,12 +93,12 @@ contract SURAToken is ERC20, ERC20Pausable, AccessControl, ReentrancyGuard {
     mapping(address => uint256) private _investorIndex;
     mapping(address => uint256) private _pendingClaims;
 
-    event Issued(address indexed operator, address indexed to, uint256 value, bytes data);
-    event Redeemed(address indexed operator, address indexed from, uint256 value, bytes data);
-    event IssuedByPartition(bytes32 indexed partition, address indexed to, uint256 value);
+    event Issued(address indexed operator, address indexed to, uint256 indexed value, bytes data);
+    event Redeemed(address indexed operator, address indexed from, uint256 indexed value, bytes data);
+    event IssuedByPartition(bytes32 indexed partition, address indexed to, uint256 indexed value);
     event TransferByPartition(bytes32 indexed fromPartition, address indexed from, address indexed to, uint256 value);
-    event TokensLocked(address indexed investor, uint256 amount, uint48 until);
-    event TokensUnlocked(address indexed investor, uint256 amount);
+    event TokensLocked(address indexed investor, uint256 indexed amount, uint48 indexed until);
+    event TokensUnlocked(address indexed investor, uint256 indexed amount);
     event TokensFrozen(address indexed investor, uint256 amount);
     event TokensUnfrozen(address indexed investor, uint256 amount);
     event ForcedTransfer(address indexed from, address indexed to, uint256 amount, string reason);
@@ -106,7 +106,7 @@ contract SURAToken is ERC20, ERC20Pausable, AccessControl, ReentrancyGuard {
     event DocumentUpdated(bytes32 indexed name, string uri, bytes32 docHash);
     event OfferingClosed(uint256 totalRaised, uint256 totalTokens);
     event RedemptionEnabled();
-    event RedemptionFundDeposited(address indexed depositor, uint256 amount); // H-04 FIX
+    event RedemptionFundDeposited(address indexed depositor, uint256 indexed amount); // H-04 FIX
     event DustSwept(address indexed to, uint256 amount);                       // M-03 FIX
     event DistributionProcessed(uint256 indexed totalAmount, uint256 perToken, uint48 indexed timestamp);
     event Investment(address indexed investor, uint256 indexed usdcAmount, uint256 tokens);
@@ -473,3 +473,4 @@ contract SURAToken is ERC20, ERC20Pausable, AccessControl, ReentrancyGuard {
     function getInvestorAt(uint256 index) external view returns (address) { return _investorList[index]; }
     function decimals() public pure override returns (uint8) { return 18; }
 }
+

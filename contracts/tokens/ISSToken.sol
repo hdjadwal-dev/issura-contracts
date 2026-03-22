@@ -68,11 +68,11 @@ contract ISSToken is ERC20, AccessControl, ReentrancyGuard {
     uint256 public constant TIER3_STAKE = 10_000 * 1e18; // 50% discount
 
     // ── Events ─────────────────────────────────────────────────────────────
-    event Staked(address indexed user, uint256 indexed amount, uint48 lockUntil);
-    event Unstaked(address indexed user, uint256 indexed amount, uint256 penalty);
-    event RewardClaimed(address indexed user, uint256 creditAmount);
+    event Staked(address indexed user, uint256 indexed amount, uint48 indexed lockUntil);
+    event Unstaked(address indexed user, uint256 indexed amount, uint256 indexed penalty);
+    event RewardClaimed(address indexed user, uint256 indexed creditAmount);
     event TokensBurned(address indexed from, uint256 indexed amount, string reason);
-    event VestingCreated(address indexed beneficiary, uint256 total, uint48 cliffEnd, uint48 vestEnd);
+    event VestingCreated(address indexed beneficiary, uint256 indexed total, uint48 indexed cliffEnd, uint48 vestEnd);
     event VestingClaimed(address indexed beneficiary, uint256 indexed amount);
 
     // ── Constructor ────────────────────────────────────────────────────────
@@ -279,3 +279,8 @@ contract ISSToken is ERC20, AccessControl, ReentrancyGuard {
         _grantRole(PLATFORM_ROLE, account);
     }
 }
+
+
+
+
+

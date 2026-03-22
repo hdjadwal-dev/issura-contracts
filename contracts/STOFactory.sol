@@ -62,7 +62,7 @@ contract STOFactory is AccessControl, ReentrancyGuard {
     event InvestmentProcessed(
         bytes32 indexed stoId,
         address indexed investor,
-        uint256 usdcAmount,
+        uint256 indexed usdcAmount,
         uint256 tokens
     );
     event FeeTreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
@@ -234,5 +234,7 @@ contract STOFactory is AccessControl, ReentrancyGuard {
         return allSTOIds;
     }
 }
+
+
 
 

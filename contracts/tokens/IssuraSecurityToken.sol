@@ -66,8 +66,8 @@ contract IssuraSecurityToken is
     mapping(address => uint256) private _pendingClaims;
 
     // ── Events (additional to interface) ───────────────────────────────────
-    event Investment(address indexed investor, uint256 indexed usdcAmount, uint256 tokens);
-    event OfferingClosed(uint256 totalRaised, uint256 totalTokens);
+    event Investment(address indexed investor, uint256 indexed usdcAmount, uint256 indexed tokens);
+    event OfferingClosed(uint256 indexed totalRaised, uint256 indexed totalTokens);
 
     // ── Constructor ────────────────────────────────────────────────────────
     constructor(
@@ -353,3 +353,5 @@ contract IssuraSecurityToken is
         return 18;
     }
 }
+
+
