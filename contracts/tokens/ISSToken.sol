@@ -68,7 +68,7 @@ contract ISSToken is ERC20, AccessControl, ReentrancyGuard {
     uint256 public liquidityReserveReleased; // tracks board-approved releases
 
     // ── Treasury timelock ─────────────────────────────────────────────────
-    uint256 public immutable treasuryUnlockTime;       // set at deploy: block.timestamp + 24 months
+    uint256 public immutable treasuryUnlockTime; // set at deploy: block.timestamp + 24 months
     uint256 public treasuryReleased;         // tracks total released from treasury
 
     // ── Ecosystem pool tracking ───────────────────────────────────────────
@@ -124,23 +124,26 @@ contract ISSToken is ERC20, AccessControl, ReentrancyGuard {
     event AirdropDistributed(uint256 indexed totalRecipients, uint256 indexed totalAmount);
     event PresaleAllocated(address indexed buyer, uint256 indexed amount);
     event PublicSaleAllocated(address indexed buyer, uint256 indexed amount);
+    event TeamVestingCreated(address indexed member, uint256 indexed amount, uint48 cliffMonths, uint48 vestMonths);
+    event TrancheReallocated(bytes32 indexed fromTranche, bytes32 indexed toTranche, uint256 indexed amount);
     event AdminTransferred(address indexed from, address indexed to);
 
     // ── Constructor ────────────────────────────────────────────────────────
     /**
      * @param admin               Deployer wallet — MUST call transferAdminToGnosisSafe() immediately
      * @param ecosystemWallet     Gnosis Safe — 25M ecosystem, 36-month linear vest
-     * @param teamWallet          Founding team wallet — 12mo cliff + 36mo linear vest
+     * @param treasuryWallet      Gnosis Safe — 10M treasury, 24-month timelock
      */
     constructor(
         address admin,
-        address teamWallet,
-        address ecosystemWallet
+        address ecosystemWallet,
+        address treasuryWallet
     ) ERC20("Issura Utility Token", "ISS") {
         require(admin           != address(0), "ISS: zero admin");
-        require(teamWallet      != address(0), "ISS: zero team");
         require(ecosystemWallet != address(0), "ISS: zero ecosystem");
+        require(treasuryWallet  != address(0), "ISS: zero treasury");
 
+        _ecosystemWallet = ecosystemWallet;
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(PLATFORM_ROLE, admin);
 
@@ -175,22 +178,9 @@ contract ISSToken is ERC20, AccessControl, ReentrancyGuard {
         );
 
         // ── 3. Team & Advisors (12M) ───────────────────────────────────────
-        // Stays in contract. 12-month cliff, then 1/36th monthly over 36 months.
-        // teamWallet calls claimVested() — no admin involvement after deploy.
-        vestingSchedules[teamWallet] = VestingSchedule({
-            total:    ALLOCATION_TEAM,
-            claimed:  0,
-            cliffEnd: uint48(block.timestamp) + 365 days,
-            vestEnd:  uint48(block.timestamp) + 4 * 365 days,
-            active:   true,
-            tranche:  "team"
-        });
-        emit VestingCreated(
-            teamWallet,
-            ALLOCATION_TEAM,
-            uint48(block.timestamp) + 365 days,
-            uint48(block.timestamp) + 4 * 365 days
-        );
+        // Stays in contract. Allocated per member via createTeamVesting().
+        // Gnosis Safe calls createTeamVesting() for each founder/hire/advisor.
+        // Flexible cliff (6 or 12 months) and vest period (24, 36, or 48 months).
 
         // ── 4. Treasury & Reserve (10M) ────────────────────────────────────
         // Stays in contract. 24-month timelock — no releases until unlockTime.
@@ -272,7 +262,7 @@ contract ISSToken is ERC20, AccessControl, ReentrancyGuard {
         require(amount  > 0,                     "ISS: zero amount");
         require(!vestingSchedules[buyer].active, "ISS: schedule exists");
         require(
-            _publicSaleAllocated() + amount <= ALLOCATION_PUBLIC_SALE,
+            _publicSaleAllocated() + amount <= ALLOCATION_PUBLIC_SALE + _publicSaleExtra,
             "ISS: public sale cap exceeded"
         );
 
@@ -290,6 +280,55 @@ contract ISSToken is ERC20, AccessControl, ReentrancyGuard {
         _publicSaleTotal += amount;
         emit VestingCreated(buyer, amount, cliff, cliff);
         emit PublicSaleAllocated(buyer, amount);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // TEAM VESTING — Per-member allocation by Gnosis Safe
+    // ══════════════════════════════════════════════════════════════════════
+
+    /**
+     * @notice Create a vesting schedule for a team member, advisor, or future hire.
+     * @dev    Called by Gnosis Safe (DEFAULT_ADMIN_ROLE) once per member.
+     *         Recommended parameters:
+     *           Founders (Harry, CTO):  cliffMonths=12, vestMonths=36
+     *           Key hires / legal:      cliffMonths=6,  vestMonths=24
+     *           Advisors:               cliffMonths=0,  vestMonths=24
+     * @param  member       Team member wallet address
+     * @param  amount       ISS amount to allocate
+     * @param  cliffMonths  Cliff period in months (0, 6, or 12)
+     * @param  vestMonths   Vesting period in months after cliff (24, 36, or 48)
+     */
+    function createTeamVesting(
+        address member,
+        uint256 amount,
+        uint48  cliffMonths,
+        uint48  vestMonths
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(member  != address(0),                   "ISS: zero member");
+        require(amount   > 0,                            "ISS: zero amount");
+        require(cliffMonths <= 12,                       "ISS: cliff too long");
+        require(vestMonths  >= 12 && vestMonths <= 48,   "ISS: invalid vest period");
+        require(!vestingSchedules[member].active,        "ISS: schedule exists");
+        require(
+            _teamTotal + amount <= ALLOCATION_TEAM + _teamExtra,
+            "ISS: team cap exceeded"
+        );
+
+        uint48 cliffEnd = uint48(block.timestamp) + (cliffMonths * 30 days);
+        uint48 vestEnd  = cliffEnd + (vestMonths * 30 days);
+
+        vestingSchedules[member] = VestingSchedule({
+            total:    amount,
+            claimed:  0,
+            cliffEnd: cliffEnd,
+            vestEnd:  vestEnd,
+            active:   true,
+            tranche:  "team"
+        });
+
+        _teamTotal += amount;
+        emit VestingCreated(member, amount, cliffEnd, vestEnd);
+        emit TeamVestingCreated(member, amount, cliffMonths, vestMonths);
     }
 
     // ══════════════════════════════════════════════════════════════════════
@@ -331,7 +370,7 @@ contract ISSToken is ERC20, AccessControl, ReentrancyGuard {
         require(to     != address(0),                         "ISS: zero address");
         require(amount  > 0,                                  "ISS: zero amount");
         require(block.timestamp >= treasuryUnlockTime,        "ISS: treasury locked");
-        require(treasuryReleased + amount <= ALLOCATION_TREASURY, "ISS: treasury cap");
+        require(treasuryReleased + amount <= ALLOCATION_TREASURY + _treasuryExtra, "ISS: treasury cap");
 
         treasuryReleased += amount;
         _transfer(address(this), to, amount);
@@ -385,6 +424,84 @@ contract ISSToken is ERC20, AccessControl, ReentrancyGuard {
         }
         _airdropTotal += total;
         emit AirdropDistributed(recipients.length, total);
+    }
+
+
+    // ══════════════════════════════════════════════════════════════════════
+    // TRANCHE REALLOCATION — Handle unsold allocations
+    // ══════════════════════════════════════════════════════════════════════
+
+    /**
+     * @notice Reallocate unsold tokens from one tranche to another.
+     * @dev    Gnosis Safe only. Total supply remains fixed at 100M.
+     *         Use case: unsold pre-sale tokens → ecosystem or treasury.
+     *         Fully transparent — emits event visible on Arbiscan.
+     *
+     *         Valid fromTranche: "presale", "public", "team"
+     *         Valid toTranche:   "ecosystem", "treasury", "public", "team"
+     *
+     * @param fromTranche  Source tranche (must have unallocated balance)
+     * @param toTranche    Destination tranche
+     * @param amount       ISS amount to reallocate
+     */
+    function reallocateTranche(
+        bytes32 fromTranche,
+        bytes32 toTranche,
+        uint256 amount
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(amount > 0,                   "ISS: zero amount");
+        require(fromTranche != toTranche,     "ISS: same tranche");
+
+        // ── Validate source has enough unallocated ────────────────────────
+        if (fromTranche == "presale") {
+            require(
+                _presaleTotal + amount <= ALLOCATION_PRESALE,
+                "ISS: presale insufficient"
+            );
+            _presaleTotal += amount; // mark as allocated (consumed from presale)
+        } else if (fromTranche == "public") {
+            require(
+                _publicSaleTotal + amount <= ALLOCATION_PUBLIC_SALE,
+                "ISS: public insufficient"
+            );
+            _publicSaleTotal += amount;
+        } else if (fromTranche == "team") {
+            require(
+                _teamTotal + amount <= ALLOCATION_TEAM,
+                "ISS: team insufficient"
+            );
+            _teamTotal += amount;
+        } else {
+            revert("ISS: invalid fromTranche");
+        }
+
+        // ── Credit destination tranche ────────────────────────────────────
+        if (toTranche == "ecosystem") {
+            // Ecosystem vesting schedule already exists for Gnosis Safe
+            // Increase its total — Gnosis Safe claims via claimVested()
+            address ecoWallet = _ecosystemWallet;
+            require(ecoWallet != address(0), "ISS: ecosystem not set");
+            VestingSchedule storage eco = vestingSchedules[ecoWallet];
+            require(eco.active, "ISS: ecosystem schedule missing");
+            eco.total += amount;
+        } else if (toTranche == "treasury") {
+            require(
+                treasuryReleased + amount <= ALLOCATION_TREASURY + amount,
+                "ISS: treasury overflow"
+            );
+            // Expand treasury cap by reallocated amount
+            _treasuryExtra += amount;
+        } else if (toTranche == "public") {
+            require(fromTranche != "public", "ISS: same tranche");
+            _publicSaleExtra += amount;
+        } else if (toTranche == "team") {
+            require(fromTranche != "team", "ISS: same tranche");
+            _teamExtra += amount;
+        } else {
+            revert("ISS: invalid toTranche");
+        }
+
+        emit TrancheReallocated(fromTranche, toTranche, amount);
     }
 
     // ══════════════════════════════════════════════════════════════════════
@@ -565,7 +682,7 @@ contract ISSToken is ERC20, AccessControl, ReentrancyGuard {
         _grantRole(PLATFORM_ROLE, account);
     }
 
-    /**
+     /**
      * @notice Transfer DEFAULT_ADMIN_ROLE to Gnosis Safe and renounce deployer admin.
      * @dev    MUST be called immediately after deployment.
      *         After this call, ALL admin actions require Gnosis Safe 2-of-3 approval.
@@ -591,6 +708,13 @@ contract ISSToken is ERC20, AccessControl, ReentrancyGuard {
     uint256 private _presaleTotal;
     uint256 private _publicSaleTotal;
     uint256 private _airdropTotal;
+    uint256 private _teamTotal;
+
+    // ── Reallocation tracking ─────────────────────────────────────────────
+    uint256 private _treasuryExtra;    // extra capacity added via reallocation
+    uint256 private _publicSaleExtra;  // extra public sale capacity
+    uint256 private _teamExtra;        // extra team capacity
+    address private immutable _ecosystemWallet; // stored for ecosystem reallocation
 
     function _presaleAllocated() internal view returns (uint256) {
         return _presaleTotal;
@@ -617,14 +741,16 @@ contract ISSToken is ERC20, AccessControl, ReentrancyGuard {
         uint256 liquidityReserveRemaining,
         uint256 treasuryRemaining,
         uint256 airdropRemaining,
+        uint256 teamRemaining,
         uint256 treasuryUnlockAt,
         bool    treasuryLocked
     ) {
         presaleRemaining        = ALLOCATION_PRESALE     - _presaleTotal;
-        publicSaleRemaining     = ALLOCATION_PUBLIC_SALE - _publicSaleTotal;
+        publicSaleRemaining     = (ALLOCATION_PUBLIC_SALE + _publicSaleExtra) - _publicSaleTotal;
         liquidityReserveRemaining = ALLOCATION_LIQUIDITY - liquidityReserveReleased;
-        treasuryRemaining       = ALLOCATION_TREASURY    - treasuryReleased;
+        treasuryRemaining       = (ALLOCATION_TREASURY + _treasuryExtra) - treasuryReleased;
         airdropRemaining        = ALLOCATION_AIRDROP     - _airdropTotal;
+        teamRemaining           = (ALLOCATION_TEAM + _teamExtra) - _teamTotal;
         treasuryUnlockAt        = treasuryUnlockTime;
         treasuryLocked          = block.timestamp < treasuryUnlockTime;
     }

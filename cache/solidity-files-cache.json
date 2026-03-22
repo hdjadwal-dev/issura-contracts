@@ -1021,8 +1021,8 @@
       ]
     },
     "C:\\Users\\X1 Carbon\\issura\\issura-contracts-git\\contracts\\tokens\\ISSToken.sol": {
-      "lastModificationDate": 1774169120419,
-      "contentHash": "f5d159b10431a3ec888fd6da47cd7678",
+      "lastModificationDate": 1774173386354,
+      "contentHash": "ef11d26f7a160c4a8f6307d8274734b8",
       "sourceName": "contracts/tokens/ISSToken.sol",
       "solcConfig": {
         "version": "0.8.24",
