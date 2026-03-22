@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Pausable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "../interfaces/IIdentityRegistry.sol";
+import "../interfaces/ISURAInvestable.sol";
 
 /**
  * @title SURAToken
@@ -25,7 +26,7 @@ import "../interfaces/IIdentityRegistry.sol";
  *   - 6-month lock-up on primary issuance
  *   - Accredited investor tier checks
  */
-contract SURAToken is ERC20, ERC20Pausable, AccessControl, ReentrancyGuard {
+contract SURAToken is ERC20, ERC20Pausable, AccessControl, ReentrancyGuard, ISURAInvestable {
 
     bytes32 public constant COMPLIANCE_ROLE = keccak256("COMPLIANCE_ROLE");
     bytes32 public constant ISSUER_ROLE     = keccak256("ISSUER_ROLE");
@@ -133,18 +134,18 @@ contract SURAToken is ERC20, ERC20Pausable, AccessControl, ReentrancyGuard {
     }
 
     // Document Management (ERC-1400)
-    function setDocument(bytes32 name, string calldata uri, bytes32 docHash)
+    function setDocument(bytes32 docName, string calldata uri, bytes32 docHash)
         external onlyRole(ISSUER_ROLE)
     {
-        if (_documents[name].updatedAt == 0) _documentNames.push(name);
-        _documents[name] = Document({ docHash: docHash, uri: uri, updatedAt: uint48(block.timestamp) });
-        emit DocumentUpdated(name, uri, docHash);
+        if (_documents[docName].updatedAt == 0) _documentNames.push(docName);
+        _documents[docName] = Document({ docHash: docHash, uri: uri, updatedAt: uint48(block.timestamp) });
+        emit DocumentUpdated(docName, uri, docHash);
     }
 
-    function getDocument(bytes32 name)
+    function getDocument(bytes32 docName)
         external view returns (string memory uri, bytes32 docHash, uint48 updatedAt)
     {
-        Document storage d = _documents[name];
+        Document storage d = _documents[docName];
         return (d.uri, d.docHash, d.updatedAt);
     }
 

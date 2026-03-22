@@ -76,6 +76,9 @@ contract STOFactory is AccessControl, ReentrancyGuard {
         address admin,
         address operator
     ) {
+        require(identityRegistry_ != address(0), "Factory: zero registry");
+        require(usdc_ != address(0), "Factory: zero usdc");
+        require(feeTreasury_ != address(0), "Factory: zero treasury");
         identityRegistry = identityRegistry_;
         usdc = usdc_;
         feeTreasury = feeTreasury_;
@@ -180,14 +183,14 @@ contract STOFactory is AccessControl, ReentrancyGuard {
 
         // Approve token contract to pull exactly usdcAmount from factory
         // Using forceApprove pattern: reset to 0 first (some tokens require this)
-        usdcToken.approve(rec.tokenAddress, 0);
-        usdcToken.approve(rec.tokenAddress, usdcAmount);
+        bool s1 = usdcToken.approve(rec.tokenAddress, 0);
+        bool s2 = usdcToken.approve(rec.tokenAddress, usdcAmount);
 
         // Delegate to token contract — it will pull from this factory
         token.invest(msg.sender, usdcAmount);
 
         // Reset approval to 0 after call — prevents stale allowance exploit
-        usdcToken.approve(rec.tokenAddress, 0);
+        bool s3 = usdcToken.approve(rec.tokenAddress, 0);
 
         emit InvestmentProcessed(stoId, msg.sender, usdcAmount, 0);
     }
@@ -204,6 +207,7 @@ contract STOFactory is AccessControl, ReentrancyGuard {
     function setFeeTreasury(address newTreasury)
         external onlyRole(DEFAULT_ADMIN_ROLE)
     {
+        require(newTreasury != address(0), "Factory: zero address");
         emit FeeTreasuryUpdated(feeTreasury, newTreasury);
         feeTreasury = newTreasury;
     }
@@ -234,6 +238,10 @@ contract STOFactory is AccessControl, ReentrancyGuard {
         return allSTOIds;
     }
 }
+
+
+
+
 
 
 
