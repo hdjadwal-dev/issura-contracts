@@ -66,8 +66,8 @@ contract IssuraSecurityToken is
     mapping(address => uint256) private _pendingClaims;
 
     // ── Events (additional to interface) ───────────────────────────────────
-    event Investment(address indexed investor, uint256 indexed usdcAmount, uint256 indexed tokens);
-    event OfferingClosed(uint256 indexed totalRaised, uint256 indexed totalTokens);
+    event Investment(address indexed investor, uint256 usdcAmount, uint256 tokens);
+    event OfferingClosed(uint256 totalRaised, uint256 totalTokens);
 
     // ── Constructor ────────────────────────────────────────────────────────
     constructor(
@@ -154,7 +154,7 @@ contract IssuraSecurityToken is
         if (!_isInvestor[investor]) {
             _isInvestor[investor] = true;
             _investorList.push(investor);
-            ++_investorCount;
+            _investorCount++;
         }
 
         emit Investment(investor, usdcAmount, tokens);
@@ -179,7 +179,7 @@ contract IssuraSecurityToken is
             // Respect frozen balances
             require(
                 balanceOf(from) - _frozenTokens[from] >= amount,
-                "ST: insufficient unfrozen"
+                "ST: insufficient unfrozen balance"
             );
             // Update distribution indices before balance changes
             _updateInvestorIndex(from);
@@ -253,6 +253,19 @@ contract IssuraSecurityToken is
     }
 
     function closeOffering() external override onlyRole(ISSUER_ROLE) {
+        require(!offeringClosed, "ST: already closed");
+        offeringClosed = true;
+        emit OfferingClosed(_totalRaised, totalSupply());
+    }
+
+    /**
+     * @notice Admin override to force-close offering.
+     * @dev    Used if issuer wallet is compromised or non-cooperative.
+     *         Requires DEFAULT_ADMIN_ROLE (Gnosis Safe 2-of-3).
+     */
+    function adminCloseOffering()
+        external onlyRole(DEFAULT_ADMIN_ROLE)
+    {
         require(!offeringClosed, "ST: already closed");
         offeringClosed = true;
         emit OfferingClosed(_totalRaised, totalSupply());
@@ -349,9 +362,25 @@ contract IssuraSecurityToken is
         return (true, "");
     }
 
+
+    /**
+     * @notice Transfer DEFAULT_ADMIN_ROLE to Gnosis Safe and renounce deployer admin.
+     * @dev    MUST be called immediately after deployment.
+     *         After this call ALL admin actions require Gnosis Safe 2-of-3 approval.
+     *         This is irreversible — deployer loses all admin control permanently.
+     * @param  gnosisSafe  Gnosis Safe multisig address (2-of-3)
+     */
+    function transferAdminToGnosisSafe(address gnosisSafe)
+        external onlyRole(DEFAULT_ADMIN_ROLE)
+    {
+        require(gnosisSafe != address(0),    "ST: zero safe");
+        require(gnosisSafe != msg.sender,     "ST: same address");
+        _grantRole(DEFAULT_ADMIN_ROLE, gnosisSafe);
+        renounceRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    }
+
     function decimals() public pure override returns (uint8) {
         return 18;
     }
 }
-
 

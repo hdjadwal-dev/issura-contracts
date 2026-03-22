@@ -29,7 +29,8 @@ contract IdentityRegistry is IIdentityRegistry, AccessControl, Pausable {
     // ── Storage ────────────────────────────────────────────────────────────
     mapping(address => Identity) private _identities;
     mapping(uint16 => bool) private _allowedCountries;
-    address[] private _investors; // ordered list for enumeration
+    address[] private _investors;              // ordered list for enumeration
+    mapping(address => uint256) private _investorIndex; // investor => index in _investors
 
     // ── Constructor ────────────────────────────────────────────────────────
     constructor(address admin, address complianceOfficer) {
@@ -53,6 +54,10 @@ contract IdentityRegistry is IIdentityRegistry, AccessControl, Pausable {
         emit CountryAllowed(360);
         emit CountryAllowed(764);
         emit CountryAllowed(608);
+        emit CountryAllowed(704); // Vietnam
+        emit CountryAllowed(784); // UAE
+        emit CountryAllowed(826); // UK
+        emit CountryAllowed(344); // Hong Kong
     }
 
     // ── Compliance officer functions ───────────────────────────────────────
@@ -85,6 +90,7 @@ contract IdentityRegistry is IIdentityRegistry, AccessControl, Pausable {
             kycHash:    kycHash,
             amlClear:   true
         });
+        _investorIndex[investor] = _investors.length;
         _investors.push(investor);
 
         emit IdentityRegistered(investor, country, uint8(tier));
@@ -92,7 +98,7 @@ contract IdentityRegistry is IIdentityRegistry, AccessControl, Pausable {
     }
 
     /**
-     * @notice Mark an existing pending identity as verified
+     * @notice Mark an existing identity as verified (ACCREDITED tier).
      */
     function verifyIdentity(address investor)
         external override onlyRole(COMPLIANCE_ROLE) whenNotPaused
@@ -103,6 +109,32 @@ contract IdentityRegistry is IIdentityRegistry, AccessControl, Pausable {
         id.verifiedAt = uint48(block.timestamp);
         id.expiresAt  = uint48(block.timestamp) + 365 days;
         emit IdentityVerified(investor);
+    }
+
+    /**
+     * @notice Upgrade investor to INSTITUTIONAL tier.
+     * @dev    Separate function to avoid accidental tier downgrade.
+     */
+    function upgradeToInstitutional(address investor)
+        external onlyRole(COMPLIANCE_ROLE) whenNotPaused
+    {
+        Identity storage id = _identities[investor];
+        require(id.wallet != address(0),                      "IR: not registered");
+        require(id.tier == VerificationTier.ACCREDITED,       "IR: not accredited");
+        id.tier = VerificationTier.INSTITUTIONAL;
+        emit IdentityVerified(investor);
+    }
+
+    /**
+     * @notice Set AML clear status for an investor.
+     * @dev    Setting to false immediately blocks all transfers for this investor.
+     */
+    function setAmlClear(address investor, bool clear)
+        external onlyRole(COMPLIANCE_ROLE)
+    {
+        require(_identities[investor].wallet != address(0), "IR: not registered");
+        _identities[investor].amlClear = clear;
+        if (!clear) emit IdentitySuspended(investor, "AML flag raised");
     }
 
     /**
@@ -125,7 +157,19 @@ contract IdentityRegistry is IIdentityRegistry, AccessControl, Pausable {
         external override onlyRole(COMPLIANCE_ROLE)
     {
         require(_identities[investor].wallet != address(0), "IR: not registered");
+
+        // Swap-and-pop to remove from _investors array — O(1)
+        uint256 idx  = _investorIndex[investor];
+        uint256 last = _investors.length - 1;
+        if (idx != last) {
+            address lastInvestor    = _investors[last];
+            _investors[idx]         = lastInvestor;
+            _investorIndex[lastInvestor] = idx;
+        }
+        _investors.pop();
+        delete _investorIndex[investor];
         delete _identities[investor];
+
         emit IdentityRemoved(investor);
     }
 
@@ -189,6 +233,23 @@ contract IdentityRegistry is IIdentityRegistry, AccessControl, Pausable {
     }
 
     // ── Admin ──────────────────────────────────────────────────────────────
+
+
+    /**
+     * @notice Transfer DEFAULT_ADMIN_ROLE to Gnosis Safe and renounce deployer admin.
+     * @dev    MUST be called immediately after deployment.
+     *         After this call ALL admin actions require Gnosis Safe 2-of-3 approval.
+     *         This is irreversible — deployer loses all admin control permanently.
+     * @param  gnosisSafe  Gnosis Safe multisig address (2-of-3)
+     */
+    function transferAdminToGnosisSafe(address gnosisSafe)
+        external onlyRole(DEFAULT_ADMIN_ROLE)
+    {
+        require(gnosisSafe != address(0),    "IR: zero safe");
+        require(gnosisSafe != msg.sender,     "IR: same address");
+        _grantRole(DEFAULT_ADMIN_ROLE, gnosisSafe);
+        renounceRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    }
 
     function pause() external onlyRole(DEFAULT_ADMIN_ROLE) { _pause(); }
     function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) { _unpause(); }

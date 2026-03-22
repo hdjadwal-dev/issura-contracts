@@ -15,7 +15,7 @@ import "./tokens/IssuraSecurityToken.sol";
  *   Flow:
  *     1. Admin approves issuer application (off-chain KYC complete)
  *     2. Admin calls createSTO() with config approved in review
- *     3. New IssuraSecurityToken (ERC-1400) deployed and registered
+ *     3. New IssuraSecurityToken (ERC-3643) deployed and registered
  *     4. Investors call invest() via the factory (AGENT_ROLE)
  *     5. Issuer calls processDistribution() directly on token contract
  *
@@ -62,11 +62,11 @@ contract STOFactory is AccessControl, ReentrancyGuard {
     event InvestmentProcessed(
         bytes32 indexed stoId,
         address indexed investor,
-        uint256 indexed usdcAmount,
+        uint256 usdcAmount,
         uint256 tokens
     );
     event FeeTreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
-    event DefaultFeeUpdated(uint16 indexed oldBps, uint16 indexed newBps);
+    event DefaultFeeUpdated(uint16 oldBps, uint16 newBps);
 
     // ── Constructor ────────────────────────────────────────────────────────
     constructor(
@@ -77,8 +77,9 @@ contract STOFactory is AccessControl, ReentrancyGuard {
         address operator
     ) {
         require(identityRegistry_ != address(0), "Factory: zero registry");
-        require(usdc_ != address(0), "Factory: zero usdc");
-        require(feeTreasury_ != address(0), "Factory: zero treasury");
+        require(usdc_             != address(0), "Factory: zero usdc");
+        require(feeTreasury_      != address(0), "Factory: zero treasury");
+        require(admin             != address(0), "Factory: zero admin");
         identityRegistry = identityRegistry_;
         usdc = usdc_;
         feeTreasury = feeTreasury_;
@@ -146,7 +147,7 @@ contract STOFactory is AccessControl, ReentrancyGuard {
 
         issuerSTOs[config.issuer].push(stoId);
         allSTOIds.push(stoId);
-        ++stoCount;
+        stoCount++;
 
         emit STOCreated(stoId, tokenAddress, config.issuer, config.name, config.assetType, config.targetRaise);
     }
@@ -212,6 +213,23 @@ contract STOFactory is AccessControl, ReentrancyGuard {
         feeTreasury = newTreasury;
     }
 
+
+    /**
+     * @notice Transfer DEFAULT_ADMIN_ROLE to Gnosis Safe and renounce deployer admin.
+     * @dev    MUST be called immediately after deployment.
+     *         After this call ALL admin actions require Gnosis Safe 2-of-3 approval.
+     *         This is irreversible — deployer loses all admin control permanently.
+     * @param  gnosisSafe  Gnosis Safe multisig address (2-of-3)
+     */
+    function transferAdminToGnosisSafe(address gnosisSafe)
+        external onlyRole(DEFAULT_ADMIN_ROLE)
+    {
+        require(gnosisSafe != address(0),    "zero safe address");
+        require(gnosisSafe != msg.sender,     "safe cannot be deployer");
+        _grantRole(DEFAULT_ADMIN_ROLE, gnosisSafe);
+        renounceRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    }
+
     function setDefaultFeeBps(uint16 newBps)
         external onlyRole(DEFAULT_ADMIN_ROLE)
     {
@@ -238,11 +256,6 @@ contract STOFactory is AccessControl, ReentrancyGuard {
         return allSTOIds;
     }
 }
-
-
-
-
-
 
 
 
