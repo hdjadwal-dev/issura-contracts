@@ -53,10 +53,6 @@ contract IdentityRegistry is IIdentityRegistry, AccessControl, Pausable {
         emit CountryAllowed(360);
         emit CountryAllowed(764);
         emit CountryAllowed(608);
-        emit CountryAllowed(704); // L-02 FIX: Vietnam
-        emit CountryAllowed(784); // L-02 FIX: UAE
-        emit CountryAllowed(826); // L-02 FIX: UK
-        emit CountryAllowed(344); // L-02 FIX: Hong Kong
     }
 
     // ── Compliance officer functions ───────────────────────────────────────
@@ -130,15 +126,6 @@ contract IdentityRegistry is IIdentityRegistry, AccessControl, Pausable {
     {
         require(_identities[investor].wallet != address(0), "IR: not registered");
         delete _identities[investor];
-        // H-01 FIX: remove from _investors array using swap-and-pop (O(n) but COMPLIANCE only)
-        uint256 len = _investors.length;
-        for (uint256 i = 0; i < len; i++) {
-            if (_investors[i] == investor) {
-                _investors[i] = _investors[len - 1];
-                _investors.pop();
-                break;
-            }
-        }
         emit IdentityRemoved(investor);
     }
 

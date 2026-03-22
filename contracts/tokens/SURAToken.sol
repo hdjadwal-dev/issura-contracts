@@ -6,7 +6,6 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Pausable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "../interfaces/IIdentityRegistry.sol";
-import "../interfaces/ISURAInvestable.sol";
 
 /**
  * @title SURAToken
@@ -26,7 +25,7 @@ import "../interfaces/ISURAInvestable.sol";
  *   - 6-month lock-up on primary issuance
  *   - Accredited investor tier checks
  */
-contract SURAToken is ERC20, ERC20Pausable, AccessControl, ReentrancyGuard, ISURAInvestable {
+contract SURAToken is ERC20, ERC20Pausable, AccessControl, ReentrancyGuard {
 
     bytes32 public constant COMPLIANCE_ROLE = keccak256("COMPLIANCE_ROLE");
     bytes32 public constant ISSUER_ROLE     = keccak256("ISSUER_ROLE");
@@ -109,8 +108,8 @@ contract SURAToken is ERC20, ERC20Pausable, AccessControl, ReentrancyGuard, ISUR
     event RedemptionEnabled();
     event RedemptionFundDeposited(address indexed depositor, uint256 amount); // H-04 FIX
     event DustSwept(address indexed to, uint256 amount);                       // M-03 FIX
-    event DistributionProcessed(uint256 totalAmount, uint256 perToken, uint48 timestamp);
-    event Investment(address indexed investor, uint256 usdcAmount, uint256 tokens);
+    event DistributionProcessed(uint256 indexed totalAmount, uint256 perToken, uint48 indexed timestamp);
+    event Investment(address indexed investor, uint256 indexed usdcAmount, uint256 tokens);
     event OperatorAuthorised(address indexed operator, address indexed tokenHolder);
     event OperatorRevoked(address indexed operator, address indexed tokenHolder);
     event STOPaused(string reason);
@@ -134,18 +133,18 @@ contract SURAToken is ERC20, ERC20Pausable, AccessControl, ReentrancyGuard, ISUR
     }
 
     // Document Management (ERC-1400)
-    function setDocument(bytes32 docName, string calldata uri, bytes32 docHash)
+    function setDocument(bytes32 name, string calldata uri, bytes32 docHash)
         external onlyRole(ISSUER_ROLE)
     {
-        if (_documents[docName].updatedAt == 0) _documentNames.push(docName);
-        _documents[docName] = Document({ docHash: docHash, uri: uri, updatedAt: uint48(block.timestamp) });
-        emit DocumentUpdated(docName, uri, docHash);
+        if (_documents[name].updatedAt == 0) _documentNames.push(name);
+        _documents[name] = Document({ docHash: docHash, uri: uri, updatedAt: uint48(block.timestamp) });
+        emit DocumentUpdated(name, uri, docHash);
     }
 
-    function getDocument(bytes32 docName)
+    function getDocument(bytes32 name)
         external view returns (string memory uri, bytes32 docHash, uint48 updatedAt)
     {
-        Document storage d = _documents[docName];
+        Document storage d = _documents[name];
         return (d.uri, d.docHash, d.updatedAt);
     }
 
@@ -212,15 +211,7 @@ contract SURAToken is ERC20, ERC20Pausable, AccessControl, ReentrancyGuard, ISUR
         uint256 fee        = (usdcAmount * _config.feeBps) / 10000;
         uint256 netProceeds = usdcAmount - fee;
 
-        // CEI NOTE: USDC (Circle) has no callback hooks — reentrancy via USDC is not
-        // possible in practice. nonReentrant guard provides additional protection.
-        // State changes intentionally occur after transfer to ensure payment is received
-        // before tokens are minted. This is the correct economic ordering.
-        // slither-disable-next-line reentrancy-no-eth
-        require(
-            usdc.transferFrom(msg.sender, address(this), usdcAmount),
-            "ST: USDC pull from factory failed"
-        );
+        require(usdc.transferFrom(msg.sender, address(this), usdcAmount), "SURA: USDC pull failed");
         require(usdc.transfer(_config.treasury, fee), "SURA: fee transfer failed");
         require(usdc.transfer(_config.issuer, netProceeds), "SURA: proceeds transfer failed");
 
@@ -234,7 +225,7 @@ contract SURAToken is ERC20, ERC20Pausable, AccessControl, ReentrancyGuard, ISUR
         if (!_isInvestor[investor]) {
             _isInvestor[investor] = true;
             _investorList.push(investor);
-            _investorCount++;
+            ++_investorCount;
         }
 
         emit Investment(investor, usdcAmount, tokens);
@@ -263,7 +254,7 @@ contract SURAToken is ERC20, ERC20Pausable, AccessControl, ReentrancyGuard, ISUR
     function transferByPartition(bytes32 partition, address to, uint256 value, bytes calldata /*data*/)
         external whenNotPaused nonReentrant returns (bytes32)
     {
-        require(partition == PARTITION_TRADEABLE, "SURA: only TRADEABLE transferable");
+        require(partition == PARTITION_TRADEABLE, "SURA: only TRADEABLE");
         (bytes1 code, string memory reason) = _checkTransfer(msg.sender, to, value);
         require(code == CODE_SUCCESS, reason);
         _updateInvestorIndex(msg.sender);
@@ -278,7 +269,7 @@ contract SURAToken is ERC20, ERC20Pausable, AccessControl, ReentrancyGuard, ISUR
         bytes calldata /*data*/, bytes calldata /*operatorData*/
     ) external whenNotPaused nonReentrant returns (bytes32) {
         require(isOperatorForPartition(partition, msg.sender, from), "SURA: not authorised operator");
-        require(partition == PARTITION_TRADEABLE, "SURA: only TRADEABLE transferable");
+        require(partition == PARTITION_TRADEABLE, "SURA: only TRADEABLE");
         (bytes1 code, string memory reason) = _checkTransfer(from, to, value);
         require(code == CODE_SUCCESS, reason);
         _updateInvestorIndex(from);
@@ -391,7 +382,7 @@ contract SURAToken is ERC20, ERC20Pausable, AccessControl, ReentrancyGuard, ISUR
 
     function redeem(uint256 amount) external nonReentrant whenNotPaused {
         require(redemptionEnabled, "SURA: redemption not enabled");
-        require(_partitionBalances[msg.sender][PARTITION_TRADEABLE] >= amount, "SURA: insufficient tradeable balance");
+        require(_partitionBalances[msg.sender][PARTITION_TRADEABLE] >= amount, "SURA: insufficient tradeable");
         require(identityRegistry.isVerified(msg.sender), "SURA: not verified");
         uint256 usdcAmount = (amount * _config.tokenPrice) / 1e18;
         require(usdc.balanceOf(address(this)) >= usdcAmount, "SURA: insufficient USDC");
@@ -405,11 +396,7 @@ contract SURAToken is ERC20, ERC20Pausable, AccessControl, ReentrancyGuard, ISUR
     function processDistribution(uint256 totalUSDC) external onlyRole(ISSUER_ROLE) nonReentrant {
         require(totalSupply() > 0, "SURA: no tokens outstanding");
         require(totalUSDC > 0, "SURA: zero distribution");
-        // slither-disable-next-line reentrancy-benign
-        require(
-            usdc.transferFrom(msg.sender, address(this), totalUSDC),
-            "ST: USDC transfer failed"
-        );
+        require(usdc.transferFrom(msg.sender, address(this), totalUSDC), "SURA: USDC transfer failed");
         uint256 increment = (totalUSDC * 1e18) / totalSupply();
         _distributionIndex += increment;
         emit DistributionProcessed(totalUSDC, increment, uint48(block.timestamp));
@@ -434,7 +421,7 @@ contract SURAToken is ERC20, ERC20Pausable, AccessControl, ReentrancyGuard, ISUR
     {
         if (from != address(0) && to != address(0)) {
             require(identityRegistry.canTransfer(from, to), "SURA: transfer not compliant");
-            require(balanceOf(from) - _frozenTokens[from] >= amount, "SURA: insufficient unfrozen balance");
+            require(balanceOf(from) - _frozenTokens[from] >= amount, "SURA: insufficient unfrozen");
             _updateInvestorIndex(from);
             _updateInvestorIndex(to);
         }

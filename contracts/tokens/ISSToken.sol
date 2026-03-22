@@ -68,12 +68,12 @@ contract ISSToken is ERC20, AccessControl, ReentrancyGuard {
     uint256 public constant TIER3_STAKE = 10_000 * 1e18; // 50% discount
 
     // ── Events ─────────────────────────────────────────────────────────────
-    event Staked(address indexed user, uint256 amount, uint48 lockUntil);
-    event Unstaked(address indexed user, uint256 amount, uint256 penalty);
+    event Staked(address indexed user, uint256 indexed amount, uint48 lockUntil);
+    event Unstaked(address indexed user, uint256 indexed amount, uint256 penalty);
     event RewardClaimed(address indexed user, uint256 creditAmount);
-    event TokensBurned(address indexed from, uint256 amount, string reason);
+    event TokensBurned(address indexed from, uint256 indexed amount, string reason);
     event VestingCreated(address indexed beneficiary, uint256 total, uint48 cliffEnd, uint48 vestEnd);
-    event VestingClaimed(address indexed beneficiary, uint256 amount);
+    event VestingClaimed(address indexed beneficiary, uint256 indexed amount);
 
     // ── Constructor ────────────────────────────────────────────────────────
     constructor(
@@ -142,7 +142,7 @@ contract ISSToken is ERC20, AccessControl, ReentrancyGuard {
             lockDays == LOCK_3M || lockDays == LOCK_6M || lockDays == LOCK_12M,
             "ISS: invalid lock period"
         );
-        require(!stakes[msg.sender].active, "ISS: already staking (unstake first)");
+        require(!stakes[msg.sender].active, "ISS: already staking");
         require(balanceOf(msg.sender) >= amount, "ISS: insufficient balance");
 
         _transfer(msg.sender, address(this), amount);
@@ -204,10 +204,9 @@ contract ISSToken is ERC20, AccessControl, ReentrancyGuard {
      */
     function hasPriorityAccess(address user) external view returns (bool) {
         Stake storage s = stakes[user];
-        // L-05 FIX: check lock DURATION (>= 6 months), not future timestamp
         return s.active &&
                s.amount >= TIER3_STAKE &&
-               (s.lockUntil - s.stakedAt) >= LOCK_6M;
+               s.lockUntil >= uint48(block.timestamp) + LOCK_6M;
     }
 
     // ── Platform fee burn (called by platform on fee settlement in ISS) ────
@@ -221,15 +220,13 @@ contract ISSToken is ERC20, AccessControl, ReentrancyGuard {
     function processFeePayment(address from, uint256 amount)
         external onlyRole(PLATFORM_ROLE)
     {
-        require(balanceOf(from) >= amount, "ISS: insufficient balance for fee");
-        // H-03 FIX: require explicit approval — cannot force-pull without user consent
-        require(allowance(from, address(this)) >= amount, "ISS: insufficient allowance - user must approve first");
+        require(balanceOf(from) >= amount, "ISS: insufficient fee bal");
 
-        uint256 burnAmount    = (amount * BURN_RATE_BPS) / 10000; // 20%
-        // 80% recycled stays in contract (ecosystem pool)               // 80%
+        uint256 burnAmount = (amount * BURN_RATE_BPS) / 10000; // 20%
+        // uint256 recycleAmount = amount - burnAmount;  // 80% — reserved for future staking pool
 
-        // Pull from user via approved transferFrom (respects allowance)
-        transferFrom(from, address(this), amount);
+        // Pull from user
+        _transfer(from, address(this), amount);
 
         // Burn 20%
         _burn(address(this), burnAmount);
@@ -282,5 +279,3 @@ contract ISSToken is ERC20, AccessControl, ReentrancyGuard {
         _grantRole(PLATFORM_ROLE, account);
     }
 }
-
-

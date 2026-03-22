@@ -66,7 +66,7 @@ contract IssuraSecurityToken is
     mapping(address => uint256) private _pendingClaims;
 
     // ── Events (additional to interface) ───────────────────────────────────
-    event Investment(address indexed investor, uint256 usdcAmount, uint256 tokens);
+    event Investment(address indexed investor, uint256 indexed usdcAmount, uint256 tokens);
     event OfferingClosed(uint256 totalRaised, uint256 totalTokens);
 
     // ── Constructor ────────────────────────────────────────────────────────
@@ -124,14 +124,11 @@ contract IssuraSecurityToken is
         uint256 fee        = (usdcAmount * _config.feeBps) / 10000;
         uint256 netProceeds = usdcAmount - fee;
 
-        // CEI NOTE: USDC (Circle) has no callback hooks — reentrancy via USDC is not
-        // possible in practice. nonReentrant guard provides additional protection.
-        // State changes intentionally occur after transfer to ensure payment is received
-        // before tokens are minted. This is the correct economic ordering.
-        // slither-disable-next-line reentrancy-no-eth
+        // Pull total USDC from factory (factory already received it from investor)
+        // Factory approves this contract before calling invest()
         require(
             usdc.transferFrom(msg.sender, address(this), usdcAmount),
-            "ST: USDC pull from factory failed"
+            "ST: USDC pull failed"
         );
 
         // Forward fee to platform treasury
@@ -157,7 +154,7 @@ contract IssuraSecurityToken is
         if (!_isInvestor[investor]) {
             _isInvestor[investor] = true;
             _investorList.push(investor);
-            _investorCount++;
+            ++_investorCount;
         }
 
         emit Investment(investor, usdcAmount, tokens);
@@ -182,7 +179,7 @@ contract IssuraSecurityToken is
             // Respect frozen balances
             require(
                 balanceOf(from) - _frozenTokens[from] >= amount,
-                "ST: insufficient unfrozen balance"
+                "ST: insufficient unfrozen"
             );
             // Update distribution indices before balance changes
             _updateInvestorIndex(from);
@@ -274,7 +271,6 @@ contract IssuraSecurityToken is
         require(totalSupply() > 0, "ST: no tokens outstanding");
         require(totalUSDC > 0, "ST: zero distribution");
 
-        // slither-disable-next-line reentrancy-benign
         require(
             usdc.transferFrom(msg.sender, address(this), totalUSDC),
             "ST: USDC transfer failed"
